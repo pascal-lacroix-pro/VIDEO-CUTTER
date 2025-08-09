@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>Video Cutter — Prototype</title>
+    <!-- CSP simple : tout en local -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; media-src 'self' file:; style-src 'self' 'unsafe-inline'"
+    />
+    <style>
+      :root {
+        --gap: 12px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+
+      /* ===== Layout global (respecte vos couleurs) ===== */
+      html {
+        height: 100%;
+      }
+      body {
+        font-family: ui-sans-serif, system-ui, Arial;
+        padding: 16px;
+        background: #333;
+        color: #d0d0d0;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        height: 100vh; /* plein écran */
+        min-height: 0; /* clé: permet au centre de rétrécir */
+        /* overflow: hidden; évite scroll parasite si la vidéo déborde */
+      }
+
+      h1 {
+        margin: 0;
+      }
+
+      .row {
+        display: flex;
+        gap: var(--gap);
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .box {
+        padding: 12px;
+        border: 1px solid #d0d0d0;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+
+      /* Header & footer prennent juste leur place, pas plus */
+      .header,
+      .footer {
+        flex: 0 0 auto;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* ===== Vidéo: grandit au maximum, ne chevauche pas la footer ===== */
+      .main {
+        flex-grow: 1;
+        max-height: 65vh;
+      }
+
+      #video {
+        width: 100%;
+        height: 100%; /* remplit la zone centrale de la page */
+        object-fit: contain; /* bandes noires si nécessaire, pas d’étirement */
+        background: #000;
+        border-radius: 8px;
+        /* pas de max-height ici: ça bloquait la croissance */
+      }
+
+      /* Boutons & selects: vos couleurs */
+      button,
+      select {
+        padding: 6px 10px;
+        background: #c2c1c1;
+        color: #000;
+        border: none;
+        border-radius: 6px;
+      }
+
+      .grow {
+        flex: 1;
+      }
+
+      .time {
+        font-variant-numeric: tabular-nums;
+        min-width: 160px;
+        text-align: right;
+      }
+
+      .kbd {
+        padding: 2px 6px;
+        border: 1px solid #999;
+        border-radius: 4px;
+        background: #d0d0d0;
+        color: #000;
+        font-family: ui-monospace, SFMono-Regular, monospace;
+      }
+
+      .small {
+        color: #666;
+        font-size: 12px;
+      }
+
+      /* Logo: inchangé */
+      #logo {
+        width: 100px;
+        vertical-align: middle;
+      }
+
+      /* ===== Seekbar (cliquable, avec surlignage IN/OUT via --seek-bg) ===== */
+      #seek {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 8px;
+        border-radius: 6px;
+        background: #d0d0d0; /* fallback (vos couleurs) */
+        outline: none;
+        position: relative;
+        z-index: 10; /* au-dessus de la vidéo si besoin */
+      }
+
+      #seek::-webkit-slider-runnable-track {
+        height: 8px;
+        border-radius: 6px;
+        background: var(--seek-bg, #e5e7eb); /* surlignage défini en JS */
+      }
+
+      #seek::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #111;
+        border: 2px solid #d0d0d0; /* cohérent avec votre thème */
+        margin-top: -3px; /* centre le thumb sur la piste (8px) */
+      }
+
+      /* (Optionnel) Compat Firefox, au cas où */
+      #seek::-moz-range-track {
+        height: 8px;
+        border-radius: 6px;
+        background: var(--seek-bg, #e5e7eb);
+      }
+      #seek::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #111;
+        border: 2px solid #d0d0d0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <h1>
+        <img src="./logo.png" alt="" id="logo" />
+      </h1>
+
+      <!-- Ouvrir un fichier vidéo via le dialog Electron -->
+      <div class="box row">
+        <button id="openFile">Ouvrir une vidéo…</button>
+        <span class="small">Formats courants : mp4, mkv, mov, avi, webm</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Lecteur vidéo -->
+      <video id="video" preload="metadata" playsinline></video>
+    </main>
+
+    <footer class="footer">
+      <!-- Barre de défilement -->
+      <div class="box">
+        <input
+          id="seek"
+          type="range"
+          min="0"
+          max="0"
+          step="0.001"
+          value="0"
+          style="width: 100%"
+        />
+        <div class="small">
+          Position: <span id="posDisplay">00:00:00.000</span> /
+          <span id="durDisplay">--:--:--.---</span>
+        </div>
+      </div>
+
+      <!-- Contrôles -->
+      <div class="box row">
+        <button id="play">▶︎ Play</button>
+
+        <button id="loopToggle">Loop: OFF</button>
+
+        <button id="pause">⏸ Pause</button>
+
+        <div style="display: none">
+          <button id="back05">⟲ 0,5s</button>
+          <button id="fwd05">⟳ 0,5s</button>
+          <button id="prevFrame">⟸ Frame</button>
+          <button id="nextFrame">Frame ⟹</button>
+        </div>
+
+        <label
+          >Vitesse
+          <select id="rate">
+            <option>0.25</option>
+            <option>0.5</option>
+            <option selected>1</option>
+            <option>1.25</option>
+            <option>1.5</option>
+            <option>2</option>
+            <option>4</option></select
+          >x
+        </label>
+
+        <button id="setStart">Set Start</button>
+        <button id="setEnd">Set End</button>
+        <span class="small"
+          >IN: <span id="startDisplay">--:--:--.---</span></span
+        >
+        <span class="small"
+          >OUT: <span id="endDisplay">--:--:--.---</span></span
+        >
+
+        <button id="exportClip">Exporter extrait</button>
+        <span id="exportStatus" class="small"></span>
+
+        <span class="grow"></span>
+        <span id="fps" class="small">fps ≈ n/a</span>
+        <span id="time" class="time">00:00:00.000</span>
+      </div>
+
+      <!-- <div class="box small">
+      Raccourcis : <span class="kbd">Espace</span> Play/Pause •
+      <span class="kbd">←</span>/<span class="kbd">→</span> frame-by-frame si
+      pause (sinon ±0,5s) • <span class="kbd">,</span>/<span class="kbd"
+        >.</span
+      >
+      toujours frame-by-frame • <span class="kbd">↑</span>/<span class="kbd"
+        >↓</span
+      >
+      vitesse ±
+    </div> -->
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
