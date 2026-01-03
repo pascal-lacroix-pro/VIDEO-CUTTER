@@ -26,8 +26,24 @@ document.addEventListener("DOMContentLoaded", () => {
   const posDisplay = $("#posDisplay");
   const durDisplay = $("#durDisplay");
 
+  const timeline = $("#timeline");
+  const tlRange = $("#tlRange");
+  const tlStartHandle = $("#tlStartHandle");
+  const tlEndHandle = $("#tlEndHandle");
+  const tlPlayhead = $("#tlPlayhead");
+  const tlZoom = $("#tlZoom");
+  const tlZoomVal = $("#tlZoomVal");
+  const tlWindow = $("#tlWindow");
+
   const loopBtn = $("#loopToggle");
   let loopEnabled = false;
+
+  const barsInput = $("#bars");
+  const beatsPerBarSel = $("#beatsPerBar");
+  const loopLenEl = $("#loopLen");
+  const bpmComputedEl = $("#bpmComputed");
+  const bpmTargetInput = $("#bpmTarget");
+  const keepPitchInput = $("#keepPitch");
 
   const EPS = 0.02;
 
@@ -42,6 +58,66 @@ document.addEventListener("DOMContentLoaded", () => {
   pitchSemis?.addEventListener("input", () => {
     pitchSemisVal.textContent = String(pitchSemis.value || 0);
     schedulePreviewRender(); // re-render si loop ON
+  });
+
+  keepPitchInput?.addEventListener("change", () => {
+    const keep = Boolean(keepPitchInput.checked);
+    if (!keep) {
+      if (pitchSemis) pitchSemis.value = "0";
+      if (pitchSemisVal) pitchSemisVal.textContent = "0";
+    }
+    if (pitchSemis) pitchSemis.disabled = !keep;
+    schedulePreviewRender();
+  });
+
+  if (keepPitchInput && pitchSemis) {
+    pitchSemis.disabled = !keepPitchInput.checked;
+  }
+
+  function getBars() {
+    const v = parseInt(barsInput?.value || "1", 10);
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  }
+
+  function getBeatsPerBar() {
+    const v = parseInt(beatsPerBarSel?.value || "4", 10);
+    return Number.isFinite(v) && v > 0 ? v : 4;
+  }
+
+  function getBpmTarget() {
+    const v = Number(bpmTargetInput?.value);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  function getLoopDuration() {
+    if (startPoint == null || endPoint == null) return null;
+    return Math.max(0.01, endPoint - startPoint);
+  }
+
+  function updateBpmDisplay() {
+    const dur = getLoopDuration();
+    if (!dur) {
+      if (loopLenEl) loopLenEl.textContent = "--:--:--.---";
+      if (bpmComputedEl) bpmComputedEl.textContent = "--";
+      return;
+    }
+    if (loopLenEl) loopLenEl.textContent = formatTime(dur);
+    const bars = getBars();
+    const beats = getBeatsPerBar();
+    const bpm = (bars * beats * 60) / dur;
+    if (bpmComputedEl) bpmComputedEl.textContent = bpm.toFixed(2);
+  }
+
+  barsInput?.addEventListener("input", () => {
+    updateBpmDisplay();
+    schedulePreviewRender();
+  });
+  beatsPerBarSel?.addEventListener("change", () => {
+    updateBpmDisplay();
+    schedulePreviewRender();
+  });
+  bpmTargetInput?.addEventListener("input", () => {
+    schedulePreviewRender();
   });
 
   // État preview
@@ -66,8 +142,13 @@ document.addEventListener("DOMContentLoaded", () => {
       source: filePath,
       start: startPoint,
       end: endPoint,
-      pitchSemis: Number(pitchSemis?.value || 0),
-      // bpmTarget/bars/beatPerBar — on pourra les ajouter plus tard
+      pitchSemis: keepPitchInput?.checked
+        ? Number(pitchSemis?.value || 0)
+        : 0,
+      bpmTarget: getBpmTarget(),
+      bars: getBars(),
+      beatsPerBar: getBeatsPerBar(),
+      keepPitch: Boolean(keepPitchInput?.checked),
     });
     previewPending = false;
     if (!res?.success) {
@@ -97,6 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
     timeEl.textContent = formatTime(t);
     seek.value = t.toFixed(3);
     posDisplay.textContent = formatTime(t);
+    updateTimeline();
 
     if (!loopEnabled || startPoint == null || endPoint == null) return;
     if (t >= endPoint - EPS) {
@@ -132,6 +214,181 @@ document.addEventListener("DOMContentLoaded", () => {
     seek.style.setProperty("--seek-bg", grad);
   }
 
+  function getTimelineWindow() {
+    const dur = video.duration || 0;
+    if (!dur || !isFinite(dur)) return null;
+    const zoom = Number(tlZoom?.value || 1);
+    const windowDur = Math.max(0.01, dur / Math.max(1, zoom));
+    const center =
+      startPoint != null && endPoint != null
+        ? (startPoint + endPoint) / 2
+        : video.currentTime || 0;
+    let start = center - windowDur / 2;
+    let end = center + windowDur / 2;
+    if (start < 0) {
+      end -= start;
+      start = 0;
+    }
+    if (end > dur) {
+      start -= end - dur;
+      end = dur;
+      if (start < 0) start = 0;
+    }
+    return { start, end, dur };
+  }
+
+  function updateTimeline() {
+    if (!timeline || !tlPlayhead) return;
+    const win = getTimelineWindow();
+    if (!win) return;
+    const rect = timeline.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const map = (t) =>
+      ((t - win.start) / Math.max(0.0001, win.end - win.start)) * width;
+
+    const playX = clamp(map(video.currentTime || 0), 0, width);
+    tlPlayhead.style.left = `${playX}px`;
+
+    if (startPoint != null && endPoint != null && tlRange) {
+      const x1 = clamp(map(startPoint), 0, width);
+      const x2 = clamp(map(endPoint), 0, width);
+      const left = Math.min(x1, x2);
+      const right = Math.max(x1, x2);
+      tlRange.hidden = false;
+      tlRange.style.left = `${left}px`;
+      tlRange.style.width = `${Math.max(2, right - left)}px`;
+      if (tlStartHandle) {
+        tlStartHandle.hidden = false;
+        tlStartHandle.style.left = `${left}px`;
+      }
+      if (tlEndHandle) {
+        tlEndHandle.hidden = false;
+        tlEndHandle.style.left = `${right}px`;
+      }
+    } else {
+      if (tlRange) tlRange.hidden = true;
+      if (tlStartHandle) tlStartHandle.hidden = true;
+      if (tlEndHandle) tlEndHandle.hidden = true;
+    }
+
+    if (tlZoomVal && tlZoom) {
+      tlZoomVal.textContent = `${Number(tlZoom.value || 1).toFixed(1)}x`;
+    }
+    if (tlWindow) {
+      tlWindow.textContent = `${formatTime(win.start)} – ${formatTime(
+        win.end
+      )}`;
+    }
+  }
+
+  function xToTime(clientX) {
+    if (!timeline) return null;
+    const win = getTimelineWindow();
+    if (!win) return null;
+    const rect = timeline.getBoundingClientRect();
+    const x = clamp(clientX - rect.left, 0, rect.width);
+    const t =
+      win.start + (x / Math.max(1, rect.width)) * (win.end - win.start);
+    return clamp(t, 0, win.dur);
+  }
+
+  let dragMode = null;
+  let dragOffset = 0;
+
+  tlStartHandle?.addEventListener("pointerdown", (e) => {
+    dragMode = "start";
+    video.pause();
+    if (previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+    }
+    timeline?.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  tlEndHandle?.addEventListener("pointerdown", (e) => {
+    dragMode = "end";
+    video.pause();
+    if (previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+    }
+    timeline?.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  tlRange?.addEventListener("pointerdown", (e) => {
+    if (startPoint == null || endPoint == null) return;
+    const t = xToTime(e.clientX);
+    if (t == null) return;
+    dragMode = "range";
+    dragOffset = t - startPoint;
+    video.pause();
+    if (previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+    }
+    timeline?.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  timeline?.addEventListener("pointerdown", (e) => {
+    if (e.target === tlStartHandle || e.target === tlEndHandle) return;
+    if (e.target === tlRange) return;
+    const t = xToTime(e.clientX);
+    if (t == null) return;
+    video.currentTime = t;
+    updateTimeline();
+  });
+
+  timeline?.addEventListener("pointermove", (e) => {
+    if (!dragMode) return;
+    const t = xToTime(e.clientX);
+    if (t == null) return;
+
+    if (dragMode === "start" && endPoint != null) {
+      startPoint = clamp(t, 0, endPoint - EPS);
+      startDisp.textContent = formatTime(startPoint);
+      video.currentTime = startPoint;
+    } else if (dragMode === "end" && startPoint != null) {
+      endPoint = clamp(t, startPoint + EPS, video.duration || Infinity);
+      endDisp.textContent = formatTime(endPoint);
+      video.currentTime = endPoint;
+    } else if (
+      dragMode === "range" &&
+      startPoint != null &&
+      endPoint != null
+    ) {
+      const dur = Math.max(EPS, endPoint - startPoint);
+      let newStart = clamp(t - dragOffset, 0, (video.duration || 0) - dur);
+      let newEnd = newStart + dur;
+      if (video.duration && newEnd > video.duration) {
+        newEnd = video.duration;
+        newStart = newEnd - dur;
+      }
+      startPoint = newStart;
+      endPoint = newEnd;
+      startDisp.textContent = formatTime(startPoint);
+      endDisp.textContent = formatTime(endPoint);
+      video.currentTime = clamp(t, startPoint, endPoint);
+    }
+    updateSeekbarBackground();
+    updateBpmDisplay();
+    updateTimeline();
+    schedulePreviewRender();
+  });
+
+  const endDrag = () => {
+    dragMode = null;
+  };
+  timeline?.addEventListener("pointerup", endDrag);
+  timeline?.addEventListener("pointercancel", endDrag);
+
+  tlZoom?.addEventListener("input", () => {
+    updateTimeline();
+  });
+
+  window.addEventListener("resize", () => {
+    updateTimeline();
+  });
+
   loopBtn.addEventListener("click", async () => {
     if (startPoint == null || endPoint == null) {
       alert("Définissez d’abord un IN et un OUT.");
@@ -159,6 +416,8 @@ document.addEventListener("DOMContentLoaded", () => {
     durDisplay.textContent = formatTime(video.duration || 0);
     posDisplay.textContent = formatTime(video.currentTime || 0);
     updateSeekbarBackground(); // votre fonction existante
+    updateBpmDisplay();
+    updateTimeline();
   });
 
   video.addEventListener("timeupdate", updateTime);
@@ -173,6 +432,8 @@ document.addEventListener("DOMContentLoaded", () => {
       endDisp.textContent = "--:--:--.---";
     }
     updateSeekbarBackground();
+    updateBpmDisplay();
+    updateTimeline();
   });
 
   $("#setEnd").addEventListener("click", () => {
@@ -188,6 +449,8 @@ document.addEventListener("DOMContentLoaded", () => {
     endPoint = cur;
     endDisp.textContent = formatTime(endPoint);
     updateSeekbarBackground();
+    updateBpmDisplay();
+    updateTimeline();
   });
 
   exportBtn.addEventListener("click", async () => {
@@ -200,7 +463,13 @@ document.addEventListener("DOMContentLoaded", () => {
       source: filePath,
       start: startPoint,
       end: endPoint,
-      pitchSemis: Number(document.getElementById("pitchSemis")?.value || 0), // ⬅️ nouveau
+      pitchSemis: keepPitchInput?.checked
+        ? Number(document.getElementById("pitchSemis")?.value || 0)
+        : 0,
+      bpmTarget: getBpmTarget(),
+      bars: getBars(),
+      beatsPerBar: getBeatsPerBar(),
+      keepPitch: Boolean(keepPitchInput?.checked),
     });
 
     if (result.success) {
@@ -230,13 +499,23 @@ document.addEventListener("DOMContentLoaded", () => {
     video.playbackRate = Number(rateSel.value) || 1;
     measured = false;
     fpsEl.textContent = "fps ≈ n/a";
+    updateBpmDisplay();
+    updateTimeline();
     // Petite lecture automatique pour initialiser l’affichage si souhaité
     // video.play().catch(() => {/* silencieux si bloqué */});
   }
 
   // --- Contrôles
-  $("#play").addEventListener("click", () => video.play());
-  $("#pause").addEventListener("click", () => video.pause());
+  const playToggleBtn = $("#playToggle");
+  const updatePlayToggle = () => {
+    if (!playToggleBtn) return;
+    playToggleBtn.textContent = video.paused ? "▶︎ Play" : "⏸ Pause";
+  };
+  playToggleBtn?.addEventListener("click", () => {
+    if (video.paused) video.play();
+    else video.pause();
+  });
+  updatePlayToggle();
   $("#back05").addEventListener("click", () => nudge(-0.5));
   $("#fwd05").addEventListener("click", () => nudge(+0.5));
   rateSel.addEventListener(
@@ -253,12 +532,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Synchroniser lecture/pause entre vidéo et audio de preview
   video.addEventListener("play", () => {
+    updatePlayToggle();
     if (loopEnabled && previewAudio && previewAudio.paused) {
       previewAudio.play().catch(() => {});
     }
   });
 
   video.addEventListener("pause", () => {
+    updatePlayToggle();
     if (previewAudio && !previewAudio.paused) {
       previewAudio.pause();
     }
@@ -406,6 +687,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!Number.isFinite(t)) return;
     video.currentTime = t;
     posDisplay.textContent = formatTime(t);
+    updateTimeline();
   });
 
   seek.addEventListener("change", () => {
@@ -413,6 +695,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!Number.isFinite(t)) return;
     video.currentTime = t;
     posDisplay.textContent = formatTime(t);
+    updateTimeline();
   });
 
   // Scrubbing — si loop ON, réalignez l’audio
@@ -436,6 +719,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (wasPlaying) {
       video.play();
     }
+    updateTimeline();
   };
   seek.addEventListener("pointerup", endScrub);
   seek.addEventListener("pointercancel", endScrub);

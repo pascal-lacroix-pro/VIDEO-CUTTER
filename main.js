@@ -52,6 +52,7 @@ ipcMain.handle(
       bpmTarget = null,
       bars = null,
       beatsPerBar = 4,
+      keepPitch = true,
     }
   ) => {
     const { canceled, filePath } = await dialog.showSaveDialog({
@@ -72,7 +73,7 @@ ipcMain.handle(
     }
 
     // --- Pitch
-    const semis = Number(pitchSemis) || 0;
+    const semis = keepPitch ? Number(pitchSemis) || 0 : 0;
     const sr = 48000; // sample rate cible raisonnable
     const pitchRate = Math.pow(2, semis / 12); // change la hauteur
     const tempoComp = Math.pow(2, -semis / 12); // compense le tempo
@@ -100,8 +101,8 @@ ipcMain.handle(
     const needAudioProc = semis !== 0 || r !== 1;
 
     const vFilter = needVideoSpeed ? `setpts=${(1 / r).toFixed(9)}*PTS` : null;
-    const aFilter =
-      semis !== 0
+    const aFilter = keepPitch
+      ? semis !== 0
         ? [
             `asetrate=${sr * pitchRate}`,
             `aresample=${sr}`,
@@ -109,7 +110,10 @@ ipcMain.handle(
           ].join(",")
         : r !== 1
         ? atempoChain(r)
-        : null;
+        : null
+      : r !== 1
+      ? [`asetrate=${sr * r}`, `aresample=${sr}`].join(",")
+      : null;
 
     return new Promise((resolve) => {
       const args = [
@@ -171,6 +175,7 @@ ipcMain.handle(
       bpmTarget = null,
       bars = null,
       beatsPerBar = 4,
+      keepPitch = true,
     }
   ) => {
     try {
@@ -184,7 +189,7 @@ ipcMain.handle(
       }
 
       const sr = 48000; // sample rate cible
-      const semis = Number(pitchSemis) || 0;
+      const semis = keepPitch ? Number(pitchSemis) || 0 : 0;
       const pitchRate = Math.pow(2, semis / 12); // facteur de hauteur
       const tempoComp = Math.pow(2, -semis / 12); // compense le tempo
       const totalTempo = tempoComp * r;
@@ -206,8 +211,8 @@ ipcMain.handle(
         return parts.join(",");
       };
 
-      const aFilter =
-        semis !== 0
+      const aFilter = keepPitch
+        ? semis !== 0
           ? [
               `asetrate=${sr * pitchRate}`,
               `aresample=${sr}`,
@@ -215,7 +220,10 @@ ipcMain.handle(
             ].join(",")
           : r !== 1
           ? atempoChain(r)
-          : "anull";
+          : "anull"
+        : r !== 1
+        ? [`asetrate=${sr * r}`, `aresample=${sr}`].join(",")
+        : "anull";
 
       const outPath = path.join(os.tmpdir(), `vc_preview_${Date.now()}.wav`);
 

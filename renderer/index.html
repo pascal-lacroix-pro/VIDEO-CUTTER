@@ -160,6 +160,45 @@
         background: #111;
         border: 2px solid #d0d0d0;
       }
+
+      /* ===== Timeline simple (loop + zoom) ===== */
+      .timeline {
+        position: relative;
+        height: 42px;
+        background: #d0d0d0;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .tl-range {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        background: #bfdbfe;
+      }
+
+      .tl-handle {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        background: #111;
+        cursor: ew-resize;
+      }
+
+      .tl-playhead {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #111;
+        opacity: 0.9;
+        pointer-events: none;
+      }
+
+      .timeline-meta {
+        min-width: 220px;
+      }
     </style>
   </head>
   <body>
@@ -198,13 +237,46 @@
         </div>
       </div>
 
+      <!-- Timeline simple (loop + zoom + handles) -->
+      <div class="box">
+        <div class="row">
+          <div class="grow">
+            <div id="timeline" class="timeline">
+              <div id="tlRange" class="tl-range" hidden></div>
+              <div id="tlStartHandle" class="tl-handle" hidden></div>
+              <div id="tlEndHandle" class="tl-handle" hidden></div>
+              <div id="tlPlayhead" class="tl-playhead"></div>
+            </div>
+          </div>
+          <div class="timeline-meta">
+            <div class="small">
+              Zoom
+              <input
+                id="tlZoom"
+                type="range"
+                min="1"
+                max="60"
+                step="0.5"
+                value="1"
+              />
+              <span id="tlZoomVal">1x</span>
+            </div>
+            <div class="small">
+              Fenêtre: <span id="tlWindow">--:--:--.--- – --:--:--.---</span>
+            </div>
+          </div>
+        </div>
+        <div class="small">
+          Glissez les poignées pour régler IN/OUT. Cliquez pour déplacer la
+          tête de lecture.
+        </div>
+      </div>
+
       <!-- Contrôles -->
       <div class="box row">
-        <button id="play">▶︎ Play</button>
+        <button id="playToggle">▶︎ Play</button>
 
         <button id="loopToggle">Loop: OFF</button>
-
-        <button id="pause">⏸ Pause</button>
 
         <div style="display: none">
           <button id="back05">⟲ 0,5s</button>
@@ -254,6 +326,37 @@
         <span class="grow"></span>
         <span id="fps" class="small">fps ≈ n/a</span>
         <span id="time" class="time">00:00:00.000</span>
+      </div>
+
+      <!-- BPM / tempo -->
+      <div class="box row">
+        <label
+          >Mesures
+          <input id="bars" type="number" min="1" step="1" value="1" />
+        </label>
+        <label
+          >Signature
+          <select id="beatsPerBar">
+            <option value="4">4/4</option>
+            <option value="3">3/4</option>
+            <option value="2">2/4</option>
+            <option value="6">6/8</option>
+          </select>
+        </label>
+        <span class="small"
+          >Durée loop: <span id="loopLen">--:--:--.---</span></span
+        >
+        <span class="small"
+          >BPM actuel: <span id="bpmComputed">--</span></span
+        >
+        <label
+          >BPM cible
+          <input id="bpmTarget" type="number" min="1" step="0.1" />
+        </label>
+        <label
+          ><input id="keepPitch" type="checkbox" checked /> Maintenir le
+          pitch</label
+        >
       </div>
 
       <!-- <div class="box small">
