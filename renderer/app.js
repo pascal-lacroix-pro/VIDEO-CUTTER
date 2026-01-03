@@ -16,8 +16,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let startPoint = null;
   let endPoint = null;
-  const startDisp = $("#startDisplay");
-  const endDisp = $("#endDisplay");
   const startInput = $("#startInput");
   const endInput = $("#endInput");
 
@@ -362,11 +360,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (dragMode === "start" && endPoint != null) {
       startPoint = clamp(t, 0, endPoint - EPS);
-      startDisp.textContent = formatTime(startPoint);
       video.currentTime = startPoint;
     } else if (dragMode === "end" && startPoint != null) {
       endPoint = clamp(t, startPoint + EPS, video.duration || Infinity);
-      endDisp.textContent = formatTime(endPoint);
       video.currentTime = endPoint;
     } else if (
       dragMode === "range" &&
@@ -382,8 +378,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       startPoint = newStart;
       endPoint = newEnd;
-      startDisp.textContent = formatTime(startPoint);
-      endDisp.textContent = formatTime(endPoint);
       video.currentTime = clamp(t, startPoint, endPoint);
     }
     updateStartEndInputs();
@@ -443,11 +437,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#setStart").addEventListener("click", () => {
     startPoint = video.currentTime;
-    startDisp.textContent = formatTime(startPoint);
     // Si endPoint existe et est < start, on le réinitialise
     if (endPoint !== null && endPoint <= startPoint) {
       endPoint = null;
-      endDisp.textContent = "--:--:--.---";
     }
     updateStartEndInputs();
     updateSeekbarBackground();
@@ -466,7 +458,6 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     endPoint = cur;
-    endDisp.textContent = formatTime(endPoint);
     updateStartEndInputs();
     updateSeekbarBackground();
     updateBpmDisplay();
@@ -644,10 +635,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!Number.isFinite(v)) return;
     const max = endPoint != null ? endPoint - EPS : video.duration || Infinity;
     startPoint = clamp(v, 0, max);
-    startDisp.textContent = formatTime(startPoint);
     if (endPoint != null && endPoint <= startPoint) {
       endPoint = null;
-      endDisp.textContent = "--:--:--.---";
     }
     updateStartEndInputs();
     updateSeekbarBackground();
@@ -664,7 +653,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const v = Number(endInput?.value);
     if (!Number.isFinite(v)) return;
     endPoint = clamp(v, startPoint + EPS, video.duration || Infinity);
-    endDisp.textContent = formatTime(endPoint);
     updateStartEndInputs();
     updateSeekbarBackground();
     updateBpmDisplay();
