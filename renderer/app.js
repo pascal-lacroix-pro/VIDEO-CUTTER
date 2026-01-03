@@ -18,6 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let endPoint = null;
   const startDisp = $("#startDisplay");
   const endDisp = $("#endDisplay");
+  const startInput = $("#startInput");
+  const endInput = $("#endInput");
 
   const exportBtn = $("#exportClip");
   const exportStatus = $("#exportStatus");
@@ -106,6 +108,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const beats = getBeatsPerBar();
     const bpm = (bars * beats * 60) / dur;
     if (bpmComputedEl) bpmComputedEl.textContent = bpm.toFixed(2);
+  }
+
+  function updateStartEndInputs() {
+    if (startInput) {
+      startInput.value =
+        startPoint == null ? "" : startPoint.toFixed(3).toString();
+    }
+    if (endInput) {
+      endInput.value = endPoint == null ? "" : endPoint.toFixed(3).toString();
+    }
   }
 
   barsInput?.addEventListener("input", () => {
@@ -281,6 +293,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function pausePlayback() {
+    video.pause();
+    if (previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+    }
+  }
+
   function xToTime(clientX) {
     if (!timeline) return null;
     const win = getTimelineWindow();
@@ -297,20 +316,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   tlStartHandle?.addEventListener("pointerdown", (e) => {
     dragMode = "start";
-    video.pause();
-    if (previewAudio && !previewAudio.paused) {
-      previewAudio.pause();
-    }
+    pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
 
   tlEndHandle?.addEventListener("pointerdown", (e) => {
     dragMode = "end";
-    video.pause();
-    if (previewAudio && !previewAudio.paused) {
-      previewAudio.pause();
-    }
+    pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
@@ -321,17 +334,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (t == null) return;
     dragMode = "range";
     dragOffset = t - startPoint;
-    video.pause();
-    if (previewAudio && !previewAudio.paused) {
-      previewAudio.pause();
-    }
+    pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
 
   timeline?.addEventListener("pointerdown", (e) => {
-    if (e.target === tlStartHandle || e.target === tlEndHandle) return;
-    if (e.target === tlRange) return;
+    if (
+      e.target === tlStartHandle ||
+      e.target === tlEndHandle ||
+      e.target === tlRange
+    ) {
+      pausePlayback();
+      return;
+    }
     const t = xToTime(e.clientX);
     if (t == null) return;
     video.currentTime = t;
@@ -340,6 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   timeline?.addEventListener("pointermove", (e) => {
     if (!dragMode) return;
+    pausePlayback();
     const t = xToTime(e.clientX);
     if (t == null) return;
 
@@ -369,6 +386,7 @@ document.addEventListener("DOMContentLoaded", () => {
       endDisp.textContent = formatTime(endPoint);
       video.currentTime = clamp(t, startPoint, endPoint);
     }
+    updateStartEndInputs();
     updateSeekbarBackground();
     updateBpmDisplay();
     updateTimeline();
@@ -431,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
       endPoint = null;
       endDisp.textContent = "--:--:--.---";
     }
+    updateStartEndInputs();
     updateSeekbarBackground();
     updateBpmDisplay();
     updateTimeline();
@@ -448,6 +467,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     endPoint = cur;
     endDisp.textContent = formatTime(endPoint);
+    updateStartEndInputs();
     updateSeekbarBackground();
     updateBpmDisplay();
     updateTimeline();
@@ -499,6 +519,7 @@ document.addEventListener("DOMContentLoaded", () => {
     video.playbackRate = Number(rateSel.value) || 1;
     measured = false;
     fpsEl.textContent = "fps ≈ n/a";
+    updateStartEndInputs();
     updateBpmDisplay();
     updateTimeline();
     // Petite lecture automatique pour initialiser l’affichage si souhaité
@@ -516,15 +537,15 @@ document.addEventListener("DOMContentLoaded", () => {
     else video.pause();
   });
   updatePlayToggle();
-  $("#back05").addEventListener("click", () => nudge(-0.5));
-  $("#fwd05").addEventListener("click", () => nudge(+0.5));
+  $("#back05")?.addEventListener("click", () => nudge(-0.5));
+  $("#fwd05")?.addEventListener("click", () => nudge(+0.5));
   rateSel.addEventListener(
     "change",
     (e) => (video.playbackRate = Number(e.target.value) || 1)
   );
 
-  $("#prevFrame").addEventListener("click", () => stepFrame(-1));
-  $("#nextFrame").addEventListener("click", () => stepFrame(+1));
+  $("#prevFrame")?.addEventListener("click", () => stepFrame(-1));
+  $("#nextFrame")?.addEventListener("click", () => stepFrame(+1));
 
   // --- Affichage timecode
   video.addEventListener("timeupdate", updateTime);
@@ -618,14 +639,41 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${hh}:${mm}:${ss}.${mss}`;
   }
 
+  function applyStartFromInput() {
+    const v = Number(startInput?.value);
+    if (!Number.isFinite(v)) return;
+    const max = endPoint != null ? endPoint - EPS : video.duration || Infinity;
+    startPoint = clamp(v, 0, max);
+    startDisp.textContent = formatTime(startPoint);
+    if (endPoint != null && endPoint <= startPoint) {
+      endPoint = null;
+      endDisp.textContent = "--:--:--.---";
+    }
+    updateStartEndInputs();
+    updateSeekbarBackground();
+    updateBpmDisplay();
+    updateTimeline();
+    schedulePreviewRender();
+  }
+
+  function applyEndFromInput() {
+    if (startPoint == null) {
+      alert("Veuillez d’abord définir un point de départ (Start).");
+      return;
+    }
+    const v = Number(endInput?.value);
+    if (!Number.isFinite(v)) return;
+    endPoint = clamp(v, startPoint + EPS, video.duration || Infinity);
+    endDisp.textContent = formatTime(endPoint);
+    updateStartEndInputs();
+    updateSeekbarBackground();
+    updateBpmDisplay();
+    updateTimeline();
+    schedulePreviewRender();
+  }
+
   // --- Raccourcis clavier
   window.addEventListener("keydown", (e) => {
-    // éviter les conflits si un input est focus
-    if (
-      ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)
-    )
-      return;
-
     switch (e.key) {
       case " ": // Espace
         e.preventDefault();
@@ -634,12 +682,14 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       case "ArrowLeft":
         e.preventDefault();
-        if (video.paused) stepFrame(-1);
+        if (e.shiftKey) stepFrame(-10);
+        else if (video.paused) stepFrame(-1);
         else nudge(-0.5);
         break;
       case "ArrowRight":
         e.preventDefault();
-        if (video.paused) stepFrame(+1);
+        if (e.shiftKey) stepFrame(+10);
+        else if (video.paused) stepFrame(+1);
         else nudge(+0.5);
         break;
       case ",":
@@ -724,4 +774,7 @@ document.addEventListener("DOMContentLoaded", () => {
   seek.addEventListener("pointerup", endScrub);
   seek.addEventListener("pointercancel", endScrub);
   seek.addEventListener("pointerleave", () => isScrubbing && endScrub());
+
+  startInput?.addEventListener("change", applyStartFromInput);
+  endInput?.addEventListener("change", applyEndFromInput);
 });

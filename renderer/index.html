@@ -25,11 +25,8 @@
         padding: 16px;
         background: #333;
         color: #d0d0d0;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
         height: 100vh; /* plein écran */
-        min-height: 0; /* clé: permet au centre de rétrécir */
+        min-height: 0;
         /* overflow: hidden; évite scroll parasite si la vidéo déborde */
       }
 
@@ -51,26 +48,64 @@
         margin-bottom: 12px;
       }
 
-      /* Header & footer prennent juste leur place, pas plus */
-      .header,
-      .footer {
-        flex: 0 0 auto;
+      .section-title {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: 8px;
       }
 
-      .header {
+      .cta {
+        background: #ffcc66;
+        color: #000;
+        font-weight: 600;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 1.3fr 380px;
+        grid-template-rows: 65vh auto;
+        gap: 16px;
+        height: calc(100vh - 32px);
+        min-height: 0;
+        align-items: start;
+      }
+
+      .logo-block {
+        position: fixed;
+        top: 1em;
+        left: 1em;
+        z-index: 20;
+      }
+
+      .video-wrap {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+      }
+
+      .right {
+        grid-column: 2;
+        grid-row: 1;
+        max-width: 420px;
+        min-width: 320px;
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 12px;
+        height: 65vh; /* aligné sur la fenêtre vidéo */
+        overflow: auto;
       }
 
-      /* ===== Vidéo: grandit au maximum, ne chevauche pas la footer ===== */
-      .main {
-        flex-grow: 1;
-        max-height: 65vh;
+      .bottom {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        width: 100%;
       }
 
       #video {
         width: 100%;
-        height: 100%; /* remplit la zone centrale de la page */
+        height: 65vh;
         object-fit: contain; /* bandes noires si nécessaire, pas d’étirement */
         background: #000;
         border-radius: 8px;
@@ -202,24 +237,126 @@
     </style>
   </head>
   <body>
-    <header class="header">
+    <div class="logo-block">
       <h1>
         <img src="./logo.png" alt="" id="logo" />
       </h1>
+    </div>
 
-      <!-- Ouvrir un fichier vidéo via le dialog Electron -->
-      <div class="box row">
-        <button id="openFile">Ouvrir une vidéo…</button>
-        <span class="small">Formats courants : mp4, mkv, mov, avi, webm</span>
+    <div class="layout">
+      <div class="video-wrap">
+        <!-- Lecteur vidéo -->
+        <video id="video" preload="metadata" playsinline></video>
       </div>
-    </header>
 
-    <main class="main">
-      <!-- Lecteur vidéo -->
-      <video id="video" preload="metadata" playsinline></video>
-    </main>
+      <div class="right">
+        <div class="row">
+          <div class="box grow">
+            <div class="section-title">Fichier</div>
+            <div class="row">
+              <button id="openFile">Ouvrir une vidéo…</button>
+              <span class="small"
+                >Formats courants : mp4, mkv, mov, avi, webm</span
+              >
+            </div>
+          </div>
+          <button id="exportClip" class="cta">Exporter extrait</button>
+          <span id="exportStatus" class="small"></span>
+        </div>
 
-    <footer class="footer">
+        <div class="box">
+          <div class="section-title">Lecture</div>
+          <div class="row">
+            <button id="playToggle">▶︎ Play</button>
+            <button id="loopToggle">Loop: OFF</button>
+            <label
+              >Vitesse
+              <select id="rate">
+                <option>0.25</option>
+                <option>0.5</option>
+                <option selected>1</option>
+                <option>1.25</option>
+                <option>1.5</option>
+                <option>2</option>
+                <option>4</option></select
+              >x
+            </label>
+            <span class="grow"></span>
+            <span id="fps" class="small">fps ≈ n/a</span>
+            <span id="time" class="time">00:00:00.000</span>
+          </div>
+          <div class="row">
+            <label
+              >Pitch (demi-tons)
+              <input
+                id="pitchSemis"
+                type="range"
+                min="-12"
+                max="12"
+                step="1"
+                value="0"
+              />
+              <span id="pitchSemisVal">0</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="section-title">Loop IN/OUT</div>
+          <div class="row">
+            <button id="setStart">Set Start</button>
+            <button id="setEnd">Set End</button>
+            <label
+              >Start (s)
+              <input id="startInput" type="number" min="0" step="0.001" />
+            </label>
+            <label
+              >End (s)
+              <input id="endInput" type="number" min="0" step="0.001" />
+            </label>
+            <span class="small"
+              >IN: <span id="startDisplay">--:--:--.---</span></span
+            >
+            <span class="small"
+              >OUT: <span id="endDisplay">--:--:--.---</span></span
+            >
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="section-title">Tempo</div>
+          <div class="row">
+            <label
+              >Mesures
+              <input id="bars" type="number" min="1" step="1" value="1" />
+            </label>
+            <label
+              >Signature
+              <select id="beatsPerBar">
+                <option value="4">4/4</option>
+                <option value="3">3/4</option>
+                <option value="2">2/4</option>
+                <option value="6">6/8</option>
+              </select>
+            </label>
+            <span class="small"
+              >Durée loop: <span id="loopLen">--:--:--.---</span></span
+            >
+            <span class="small"
+              >BPM actuel: <span id="bpmComputed">--</span></span
+            >
+            <label
+              >BPM cible
+              <input id="bpmTarget" type="number" min="1" step="0.1" />
+            </label>
+            <label
+              ><input id="keepPitch" type="checkbox" checked /> Maintenir le
+              pitch</label
+            >
+          </div>
+        </div>
+      </div>
+      <div class="bottom">
       <!-- Barre de défilement -->
       <div class="box">
         <input
@@ -262,7 +399,8 @@
               <span id="tlZoomVal">1x</span>
             </div>
             <div class="small">
-              Fenêtre: <span id="tlWindow">--:--:--.--- – --:--:--.---</span>
+              Fenêtre:
+              <span id="tlWindow">--:--:--.--- – --:--:--.---</span>
             </div>
           </div>
         </div>
@@ -271,106 +409,9 @@
           tête de lecture.
         </div>
       </div>
-
-      <!-- Contrôles -->
-      <div class="box row">
-        <button id="playToggle">▶︎ Play</button>
-
-        <button id="loopToggle">Loop: OFF</button>
-
-        <div style="display: none">
-          <button id="back05">⟲ 0,5s</button>
-          <button id="fwd05">⟳ 0,5s</button>
-          <button id="prevFrame">⟸ Frame</button>
-          <button id="nextFrame">Frame ⟹</button>
-        </div>
-
-        <label
-          >Vitesse
-          <select id="rate">
-            <option>0.25</option>
-            <option>0.5</option>
-            <option selected>1</option>
-            <option>1.25</option>
-            <option>1.5</option>
-            <option>2</option>
-            <option>4</option></select
-          >x
-        </label>
-
-        <button id="setStart">Set Start</button>
-        <button id="setEnd">Set End</button>
-        <span class="small"
-          >IN: <span id="startDisplay">--:--:--.---</span></span
-        >
-        <span class="small"
-          >OUT: <span id="endDisplay">--:--:--.---</span></span
-        >
-
-        <label
-          >Pitch (demi-tons)
-          <input
-            id="pitchSemis"
-            type="range"
-            min="-12"
-            max="12"
-            step="1"
-            value="0"
-          />
-          <span id="pitchSemisVal">0</span>
-        </label>
-
-        <button id="exportClip">Exporter extrait</button>
-        <span id="exportStatus" class="small"></span>
-
-        <span class="grow"></span>
-        <span id="fps" class="small">fps ≈ n/a</span>
-        <span id="time" class="time">00:00:00.000</span>
+    </div>
       </div>
-
-      <!-- BPM / tempo -->
-      <div class="box row">
-        <label
-          >Mesures
-          <input id="bars" type="number" min="1" step="1" value="1" />
-        </label>
-        <label
-          >Signature
-          <select id="beatsPerBar">
-            <option value="4">4/4</option>
-            <option value="3">3/4</option>
-            <option value="2">2/4</option>
-            <option value="6">6/8</option>
-          </select>
-        </label>
-        <span class="small"
-          >Durée loop: <span id="loopLen">--:--:--.---</span></span
-        >
-        <span class="small"
-          >BPM actuel: <span id="bpmComputed">--</span></span
-        >
-        <label
-          >BPM cible
-          <input id="bpmTarget" type="number" min="1" step="0.1" />
-        </label>
-        <label
-          ><input id="keepPitch" type="checkbox" checked /> Maintenir le
-          pitch</label
-        >
-      </div>
-
-      <!-- <div class="box small">
-      Raccourcis : <span class="kbd">Espace</span> Play/Pause •
-      <span class="kbd">←</span>/<span class="kbd">→</span> frame-by-frame si
-      pause (sinon ±0,5s) • <span class="kbd">,</span>/<span class="kbd"
-        >.</span
-      >
-      toujours frame-by-frame • <span class="kbd">↑</span>/<span class="kbd"
-        >↓</span
-      >
-      vitesse ±
-    </div> -->
-    </footer>
+    </div>
 
     <script type="module" src="./app.js"></script>
   </body>
