@@ -36,20 +36,78 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  function updateTime() {
-    console.log("test");
-    timeEl.textContent = formatTime(video.currentTime);
-    seek.value = video.currentTime.toFixed(3);
-    posDisplay.textContent = formatTime(video.currentTime);
+  // Références pitch
+  const pitchSemis = document.getElementById("pitchSemis");
+  const pitchSemisVal = document.getElementById("pitchSemisVal");
+  pitchSemis?.addEventListener("input", () => {
+    pitchSemisVal.textContent = String(pitchSemis.value || 0);
+    schedulePreviewRender(); // re-render si loop ON
+  });
 
-    // --- Boucle A→B si activée ---
+  // État preview
+  let previewAudio = null;
+  let previewPending = false;
+  let previewTimer = null;
+
+  function schedulePreviewRender() {
     if (!loopEnabled) return;
-    if (!video.duration || startPoint === null || endPoint === null) return;
+    if (startPoint == null || endPoint == null) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(renderAudioPreview, 250);
+  }
 
-    const t = video.currentTime;
+  async function renderAudioPreview() {
+    if (startPoint == null || endPoint == null) return;
+    if (!video.src) return;
+    const filePath = decodeURI(video.src.replace("file://", ""));
+
+    previewPending = true;
+    const res = await window.electronAPI.renderAudioPreview({
+      source: filePath,
+      start: startPoint,
+      end: endPoint,
+      pitchSemis: Number(pitchSemis?.value || 0),
+      // bpmTarget/bars/beatPerBar — on pourra les ajouter plus tard
+    });
+    previewPending = false;
+    if (!res?.success) {
+      console.warn("Preview error:", res?.error);
+      return;
+    }
+
+    try {
+      previewAudio?.pause();
+    } catch {}
+    previewAudio = new Audio(`file://${encodeURI(res.path)}`);
+    previewAudio.loop = true;
+    video.muted = true; // on écoute la version pitchée
+
+    // Démarre image + audio alignés sur IN
+    video.currentTime = startPoint;
+    try {
+      await Promise.allSettled([video.play(), previewAudio.play()]);
+      if (video.paused && previewAudio) {
+        previewAudio.pause(); // garde l’état cohérent
+      }
+    } catch {}
+  }
+
+  function updateTime() {
+    const t = video.currentTime || 0;
+    timeEl.textContent = formatTime(t);
+    seek.value = t.toFixed(3);
+    posDisplay.textContent = formatTime(t);
+
+    if (!loopEnabled || startPoint == null || endPoint == null) return;
     if (t >= endPoint - EPS) {
-      video.currentTime = Math.max(0, startPoint);
-      if (video.paused) video.play();
+      video.currentTime = startPoint;
+      // remet l’audio de preview au début pour rester synchro
+      if (previewAudio) {
+        try {
+          previewAudio.currentTime = 0;
+          if (previewAudio.paused) previewAudio.play();
+        } catch {}
+      }
     }
   }
 
@@ -74,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
     seek.style.setProperty("--seek-bg", grad);
   }
 
-  loopBtn.addEventListener("click", () => {
+  loopBtn.addEventListener("click", async () => {
     if (startPoint == null || endPoint == null) {
       alert("Définissez d’abord un IN et un OUT.");
       return;
@@ -83,9 +141,13 @@ document.addEventListener("DOMContentLoaded", () => {
     loopBtn.textContent = loopEnabled ? "Loop: ON" : "Loop: OFF";
 
     if (loopEnabled) {
-      // Exigence : démarrer au IN quand on active la boucle
-      video.currentTime = Math.max(0, startPoint);
-      video.play();
+      await renderAudioPreview();
+    } else {
+      try {
+        previewAudio?.pause();
+      } catch {}
+      previewAudio = null;
+      video.muted = false;
     }
   });
 
@@ -138,6 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
       source: filePath,
       start: startPoint,
       end: endPoint,
+      pitchSemis: Number(document.getElementById("pitchSemis")?.value || 0), // ⬅️ nouveau
     });
 
     if (result.success) {
@@ -187,6 +250,19 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Affichage timecode
   video.addEventListener("timeupdate", updateTime);
   video.addEventListener("loadedmetadata", updateTime);
+
+  // Synchroniser lecture/pause entre vidéo et audio de preview
+  video.addEventListener("play", () => {
+    if (loopEnabled && previewAudio && previewAudio.paused) {
+      previewAudio.play().catch(() => {});
+    }
+  });
+
+  video.addEventListener("pause", () => {
+    if (previewAudio && !previewAudio.paused) {
+      previewAudio.pause();
+    }
+  });
 
   // --- Mesure FPS via requestVideoFrameCallback (si dispo)
   let lastDisplayTime = null;
@@ -339,12 +415,27 @@ document.addEventListener("DOMContentLoaded", () => {
     posDisplay.textContent = formatTime(t);
   });
 
+  // Scrubbing — si loop ON, réalignez l’audio
   const endScrub = () => {
     if (!isScrubbing) return;
     isScrubbing = false;
-    const t = Number(seek.value);
-    if (Number.isFinite(t)) video.currentTime = t;
-    if (wasPlaying || loopEnabled) video.play();
+    const t = Number(seek.value) || 0;
+    video.currentTime = t;
+    if (loopEnabled) {
+      try {
+        // Si vous voulez 1:1 strict, forcez à 0 — ici on garde l’offset dans la loop
+        const offset = Math.max(0, t - startPoint);
+        if (previewAudio) {
+          previewAudio.pause();
+          previewAudio.currentTime =
+            offset % Math.max(0.01, endPoint - startPoint);
+          previewAudio.play();
+        }
+      } catch {}
+      video.play();
+    } else if (wasPlaying) {
+      video.play();
+    }
   };
   seek.addEventListener("pointerup", endScrub);
   seek.addEventListener("pointercancel", endScrub);
