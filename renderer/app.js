@@ -37,6 +37,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loopBtn = $("#loopToggle");
   let loopEnabled = false;
+  if (loopBtn) {
+    loopBtn.classList.toggle("btn-active", loopEnabled);
+    loopBtn.setAttribute("aria-pressed", String(loopEnabled));
+  }
 
   const barsInput = $("#bars");
   const beatsPerBarSel = $("#beatsPerBar");
@@ -134,18 +138,23 @@ document.addEventListener("DOMContentLoaded", () => {
   let previewAudio = null;
   let previewPending = false;
   let previewTimer = null;
+  let isHandleDragging = false;
+  let previewToken = 0;
 
   function schedulePreviewRender() {
     if (!loopEnabled) return;
+    if (isHandleDragging) return;
     if (startPoint == null || endPoint == null) return;
     clearTimeout(previewTimer);
     previewTimer = setTimeout(renderAudioPreview, 250);
   }
 
   async function renderAudioPreview() {
+    if (isHandleDragging) return;
     if (startPoint == null || endPoint == null) return;
     if (!video.src) return;
     const filePath = decodeURI(video.src.replace("file://", ""));
+    const token = previewToken;
 
     previewPending = true;
     const res = await window.electronAPI.renderAudioPreview({
@@ -161,6 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
       keepPitch: Boolean(keepPitchInput?.checked),
     });
     previewPending = false;
+    if (token !== previewToken) return;
     if (!res?.success) {
       console.warn("Preview error:", res?.error);
       return;
@@ -314,6 +324,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   tlStartHandle?.addEventListener("pointerdown", (e) => {
     dragMode = "start";
+    isHandleDragging = true;
+    previewToken++;
+    clearTimeout(previewTimer);
+    if (loopEnabled) {
+      loopEnabled = false;
+      loopBtn?.classList.toggle("btn-active", false);
+      loopBtn?.setAttribute("aria-pressed", "false");
+    }
     pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -321,6 +339,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   tlEndHandle?.addEventListener("pointerdown", (e) => {
     dragMode = "end";
+    isHandleDragging = true;
+    previewToken++;
+    clearTimeout(previewTimer);
+    if (loopEnabled) {
+      loopEnabled = false;
+      loopBtn?.classList.toggle("btn-active", false);
+      loopBtn?.setAttribute("aria-pressed", "false");
+    }
     pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -332,6 +358,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (t == null) return;
     dragMode = "range";
     dragOffset = t - startPoint;
+    isHandleDragging = true;
+    previewToken++;
+    clearTimeout(previewTimer);
+    if (loopEnabled) {
+      loopEnabled = false;
+      loopBtn?.classList.toggle("btn-active", false);
+      loopBtn?.setAttribute("aria-pressed", "false");
+    }
     pausePlayback();
     timeline?.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -389,6 +423,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const endDrag = () => {
     dragMode = null;
+    isHandleDragging = false;
   };
   timeline?.addEventListener("pointerup", endDrag);
   timeline?.addEventListener("pointercancel", endDrag);
@@ -407,7 +442,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     loopEnabled = !loopEnabled;
-    loopBtn.textContent = loopEnabled ? "Loop: ON" : "Loop: OFF";
+    loopBtn.classList.toggle("btn-active", loopEnabled);
+    loopBtn.setAttribute("aria-pressed", String(loopEnabled));
 
     if (loopEnabled) {
       await renderAudioPreview();
@@ -521,7 +557,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const playToggleBtn = $("#playToggle");
   const updatePlayToggle = () => {
     if (!playToggleBtn) return;
-    playToggleBtn.textContent = video.paused ? "▶︎ Play" : "⏸ Pause";
+    const playIcon =
+      '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+    const pauseIcon =
+      '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
+    playToggleBtn.innerHTML = video.paused ? playIcon : pauseIcon;
+    playToggleBtn.classList.toggle("btn-active", !video.paused);
+    playToggleBtn.setAttribute("aria-pressed", String(!video.paused));
   };
   playToggleBtn?.addEventListener("click", () => {
     if (video.paused) video.play();
@@ -663,6 +705,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Raccourcis clavier
   window.addEventListener("keydown", (e) => {
     switch (e.key) {
+      case "&":
+        if (!e.metaKey) break;
+        e.preventDefault();
+        document.getElementById("setStart")?.click();
+        break;
+      case "é":
+        if (!e.metaKey) break;
+        e.preventDefault();
+        document.getElementById("setEnd")?.click();
+        break;
+      case "@":
+        if (!e.metaKey) break;
+        e.preventDefault();
+        loopBtn?.click();
+        break;
       case " ": // Espace
         e.preventDefault();
         if (video.paused) video.play();

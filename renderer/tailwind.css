@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .panel {
+    border-radius: 0.75rem;
+    border: 1px solid #1f2a3a;
+    background: rgba(17, 23, 34, 0.8);
+    padding: 0.75rem;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  .panel-alt {
+    background: #0f151f;
+  }
+
+  .section-title {
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #9aa6b2;
+  }
+
+  .muted {
+    font-size: 0.75rem;
+    color: #9aa6b2;
+  }
+
+  .time {
+    min-width: 160px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .btn {
+    border-radius: 0.5rem;
+    border: 1px solid #1f2a3a;
+    background: #141b27;
+    padding: 0.5rem 0.75rem;
+    color: #e7edf7;
+    transition: transform 120ms ease, box-shadow 160ms ease,
+      border-color 120ms ease, background 120ms ease;
+  }
+
+  .btn:hover {
+    border-color: rgba(100, 243, 210, 0.6);
+    box-shadow: 0 0 0 3px rgba(100, 243, 210, 0.25);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  .btn-media {
+    background: rgba(100, 243, 210, 0.12);
+    border-color: rgba(100, 243, 210, 0.35);
+    color: #64f3d2;
+  }
+  .btn-media.secondary {
+    background: rgba(255, 193, 39, 0.12);
+    border-color: rgba(255, 193, 39, 0.35);
+    color: rgb(255, 193, 39);
+  }
+
+  .btn-active {
+    background: #ff6b6b;
+    color: #0b0f14;
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.25),
+      0 10px 24px rgba(255, 107, 107, 0.25);
+  }
+
+  .btn-media.secondary.btn-active {
+    background: rgb(255, 193, 39);
+    color: #0b0f14;
+    border-color: rgb(255, 193, 39);
+    box-shadow: 0 0 0 3px rgba(255, 193, 39, 0.25),
+      0 10px 24px rgba(255, 193, 39, 0.25);
+  }
+
+  .input {
+    border-radius: 0.5rem;
+    border: 1px solid #1f2a3a;
+    background: #141b27;
+    padding: 0.5rem 0.75rem;
+    color: #e7edf7;
+    outline: none;
+    transition: transform 120ms ease, box-shadow 160ms ease,
+      border-color 120ms ease, background 120ms ease;
+  }
+
+  .input:hover {
+    border-color: rgba(100, 243, 210, 0.6);
+    box-shadow: 0 0 0 3px rgba(100, 243, 210, 0.25);
+  }
+
+  .cta {
+    background: linear-gradient(120deg, #ffd166, #ffb703);
+    color: #0b0f14;
+    font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(255, 209, 102, 0.2),
+      0 10px 24px rgba(255, 209, 102, 0.2);
+  }
+
+  .range {
+    appearance: none;
+    height: 8px;
+    border-radius: 6px;
+    background: #0f1621;
+    outline: none;
+  }
+
+  .range::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 6px;
+    background: var(--seek-bg, #1b2432);
+  }
+
+  .range::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #64f3d2;
+    border: 2px solid #0b0f14;
+    margin-top: -3px;
+    box-shadow: 0 0 12px rgba(100, 243, 210, 0.6);
+  }
+
+  .range::-moz-range-track {
+    height: 8px;
+    border-radius: 6px;
+    background: var(--seek-bg, #1b2432);
+  }
+
+  .range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #64f3d2;
+    border: 2px solid #0b0f14;
+    box-shadow: 0 0 12px rgba(100, 243, 210, 0.6);
+  }
+
+  .timeline {
+    position: relative;
+    height: 42px;
+    border-radius: 6px;
+    background: #0f1621;
+    overflow: hidden;
+  }
+
+  .tl-range {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(
+      90deg,
+      rgba(100, 243, 210, 0.2),
+      rgba(100, 243, 210, 0.45)
+    );
+  }
+
+  .tl-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    background: #64f3d2;
+    cursor: ew-resize;
+    box-shadow: 0 0 8px rgba(100, 243, 210, 0.6);
+  }
+
+  .tl-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ff6b6b;
+    opacity: 0.9;
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.6);
+  }
+}
